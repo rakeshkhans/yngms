@@ -1,0 +1,284 @@
+export async function generateStaticParams() {
+  const query = encodeURIComponent(`*[_type == "app"]{ "slug": slug.current }`);
+  const res = await fetch(
+    `https://eq6o0luu.api.sanity.io/v2021-10-21/data/query/production?query=${query}`
+  );
+  const data = await res.json();
+  return data.result.map((app: { slug: string }) => ({ slug: app.slug }));
+}
+import { Metadata } from "next";
+import { notFound } from "next/navigation";
+import Link from "next/link";
+import Header from "../Header";
+import Footer from "../Footer";
+
+const PROJECT_ID = "";
+const DATASET = "production";
+
+interface Screenshot { imageUrl: string; altText: string; }
+
+interface App {
+  _id: string; name: string; slug: string; logoUrl?: string;
+  category: string; bonus: number; minWithdraw: number;
+  version?: string; size?: string; downloadLink: string;
+  rating: number; reviewCount: number; perRefer?: number;
+  developerName?: string; metaTitle?: string; metaDescription?: string;
+  appInformation?: string; telegramLink?: string; screenshots: Screenshot[];
+}
+
+interface RelatedApp {
+  _id: string; name: string; slug: string; logoUrl?: string;
+  bonus: number; minWithdraw: number; rating: number;
+}
+
+async function getApp(slug: string): Promise<App | null> {
+  try {
+    const query = encodeURIComponent(
+      `*[_type == "app" && slug.current == "${slug}"][0] {
+        _id, name, "slug": slug.current, category,
+        bonus, minWithdraw, version, size, downloadLink,
+        rating, reviewCount, perRefer, developerName,
+        metaTitle, metaDescription, appInformation, telegramLink,
+        "logoUrl": logo.asset->url,
+        "screenshots": screenshots[]{ "imageUrl": image.asset->url, altText }
+      }`
+    );
+    const res = await fetch(
+      `https://${PROJECT_ID}.api.sanity.io/v2021-10-21/data/query/${DATASET}?query=${query}`,
+      { next: { revalidate: 3600 } }
+    );
+    const data = await res.json();
+    return data.result || null;
+  } catch (e) { return null; }
+}
+
+async function getRelatedApps(currentSlug: string): Promise<RelatedApp[]> {
+  try {
+    const query = encodeURIComponent(
+      `*[_type == "app" && slug.current != "${currentSlug}"] | order(_createdAt desc) [0...12] {
+        _id, name, "slug": slug.current, bonus, minWithdraw, rating,
+        "logoUrl": logo.asset->url
+      }`
+    );
+    const res = await fetch(
+      `https://${PROJECT_ID}.api.sanity.io/v2021-10-21/data/query/${DATASET}?query=${query}`,
+      { next: { revalidate: 3600 } }
+    );
+    const data = await res.json();
+    return data.result || [];
+  } catch (e) { return []; }
+}
+
+export async function generateMetadata({ params }: { params: { slug: string } }): Promise<Metadata> {
+  const app = await getApp(params.slug);
+  if (!app) return { title: "App Not Found – NovaGames" };
+  const title = app.metaTitle || `${app.name} APK Download – ₹${app.bonus} Bonus | NovaGames`;
+  const description = app.metaDescription || `Download ${app.name} APK and get ₹${app.bonus} sign-up bonus. Minimum withdrawal ₹${app.minWithdraw}.`;
+  return {
+    title, description,
+    openGraph: { title, description, images: app.logoUrl ? [app.logoUrl] : [], type: "website" },
+    twitter: { card: "summary_large_image", title, description, images: app.logoUrl ? [app.logoUrl] : [] },
+  };
+}
+
+export default async function AppPage({ params }: { params: { slug: string } }) {
+  const app = await getApp(params.slug);
+  if (!app) notFound();
+  const relatedApps = await getRelatedApps(params.slug);
+
+  const infoRows = [
+    { label: "App Name", value: app.name },
+    app.size ? { label: "APK Size", value: app.size + " MB" } : null,
+    app.version ? { label: "Version", value: app.version } : null,
+    app.developerName ? { label: "Package Name", value: app.developerName } : null,
+    { label: "Minimum Withdrawal", value: "₹" + app.minWithdraw },
+    { label: "Sign-Up Bonus", value: "₹" + app.bonus },
+    app.perRefer ? { label: "Reward per Refer", value: "₹" + app.perRefer } : null,
+    { label: "Price", value: "Free" },
+  ].filter(Boolean) as { label: string; value: string }[];
+
+  const structuredData = {
+    "@context": "https://schema.org", "@type": "MobileApplication",
+    "name": app.name, "operatingSystem": "Android", "applicationCategory": "GameApplication",
+    "offers": { "@type": "Offer", "price": "0", "priceCurrency": "INR" },
+    "aggregateRating": { "@type": "AggregateRating", "ratingValue": app.rating, "bestRating": 5, "worstRating": 1, "ratingCount": app.reviewCount || 1 },
+  };
+
+  return (
+    <div style={{ minHeight: "100vh", background: "#f5f7fa", fontFamily: "'Segoe UI', system-ui, sans-serif" }}>
+      <Header />
+
+      <main style={{ maxWidth: 700, margin: "0 auto", padding: "20px 16px 60px" }}>
+
+        {/* App Header Card */}
+        <div style={{ background: "#fff", borderRadius: 16, padding: 20, marginBottom: 16, boxShadow: "0 2px 12px rgba(0,0,0,0.08)" }}>
+          <div style={{ display: "flex", gap: 16, alignItems: "flex-start", marginBottom: 20 }}>
+            <div style={{ width: 90, height: 90, borderRadius: 20, overflow: "hidden", flexShrink: 0, border: "2px solid #f0f0f0" }}>
+              {app.logoUrl
+                ? <img src={app.logoUrl + "?w=180&h=180&fit=crop&auto=format"} alt={app.name + " Logo"} width={90} height={90} fetchPriority="high" style={{ width: "100%", height: "100%", objectFit: "cover" }} />
+                : <div style={{ width: "100%", height: "100%", background: "linear-gradient(135deg,#00632b,#012459)", display: "flex", alignItems: "center", justifyContent: "center", fontSize: 40 }}>🎮</div>
+              }
+            </div>
+            <div style={{ flex: 1 }}>
+              <h1 style={{ margin: "0 0 8px", fontSize: 22, fontWeight: 800, color: "#1a1a1a", lineHeight: 1.2 }}>{app.name}</h1>
+              <div style={{ display: "flex", gap: 8, flexWrap: "wrap", marginBottom: 10 }}>
+                <span style={{ background: "#e8f5e9", color: "#2e7d32", padding: "5px 12px", borderRadius: 20, fontSize: 13, fontWeight: 600 }}>
+                  🎁 ₹{app.bonus} Bonus
+                </span>
+                {app.size && (
+                  <span style={{ background: "#fff3e0", color: "#e65100", padding: "5px 12px", borderRadius: 20, fontSize: 13, fontWeight: 600 }}>
+                    📂 {app.size} MB
+                  </span>
+                )}
+              </div>
+              <div style={{ display: "flex", gap: 1, alignItems: "center" }}>
+                {[1,2,3,4,5].map(s => (
+                  <span key={s} style={{ color: s <= Math.round(app.rating) ? "#FFD700" : "#ddd", fontSize: 16 }}>★</span>
+                ))}
+                <span style={{ color: "#666", fontSize: 13, marginLeft: 6 }}>{app.rating?.toFixed(1)} ({app.reviewCount} votes)</span>
+              </div>
+            </div>
+          </div>
+
+          <a href={app.downloadLink} target="_blank" rel="noopener noreferrer" style={{
+            display: "block", textAlign: "center", textDecoration: "none",
+            background: "linear-gradient(135deg, #00632b, #007860)",
+            color: "#fff", fontWeight: 800, fontSize: 17,
+            padding: "16px", borderRadius: 14, marginBottom: 14,
+            boxShadow: "0 6px 20px rgba(0,99,43,0.35)",
+          }}>⬇ Download {app.name} APK</a>
+
+          <div style={{ textAlign: "center", marginTop: 10 }}>
+            <a href="/join-telegram" target="_blank" rel="noopener noreferrer" style={{
+              display: "inline-flex", alignItems: "center", gap: 6,
+              background: "#0088cc", color: "#fff", textDecoration: "none",
+              padding: "8px 16px", borderRadius: 10, fontWeight: 600, fontSize: 13,
+            }}>🔗 Join Our Telegram Channel</a>
+          </div>
+        </div>
+
+        {/* 1. App Information — App Details se UPAR */}
+        {app.appInformation && (
+          <div style={{ background: "#fff", borderRadius: 16, padding: 20, marginBottom: 16, boxShadow: "0 2px 12px rgba(0,0,0,0.08)" }}>
+            <div style={{ color: "#444", fontSize: 14, lineHeight: 1.7 }} dangerouslySetInnerHTML={{ __html: app.appInformation }} />
+          </div>
+        )}
+
+        {/* 2. App Details Table */}
+        <div style={{ background: "#fff", borderRadius: 16, padding: 20, marginBottom: 16, boxShadow: "0 2px 12px rgba(0,0,0,0.08)" }}>
+          <h2 style={{ margin: "0 0 14px", fontSize: 16, fontWeight: 700 }}>App Details</h2>
+          <table style={{ width: "100%", borderCollapse: "collapse" }}>
+            <tbody>
+              {infoRows.map((row, i) => (
+                <tr key={i} style={{ borderBottom: i < infoRows.length - 1 ? "1px solid #f5f5f5" : "none" }}>
+                  <td style={{ padding: "10px 0", color: "#666", fontSize: 14, fontWeight: 600, width: "45%" }}>{row.label}</td>
+                  <td style={{ padding: "10px 0", color: "#1a1a1a", fontSize: 14, fontWeight: 700 }}>{row.value}</td>
+                </tr>
+              ))}
+            </tbody>
+          </table>
+        </div>
+
+        {/* Screenshots — Other Related Apps se UPAR */}
+        {app.screenshots?.length > 0 && (
+          <div style={{ background: "#fff", borderRadius: 16, padding: 20, marginBottom: 16, boxShadow: "0 2px 12px rgba(0,0,0,0.08)" }}>
+            <h2 style={{ margin: "0 0 14px", fontSize: 16, fontWeight: 700 }}>App/Game Preview</h2>
+            <div style={{ display: "flex", gap: 10, overflowX: "auto", scrollbarWidth: "none" }}>
+              {app.screenshots.map((ss, i) => (
+                <img key={i} src={ss.imageUrl + "?w=200&auto=format"} alt={ss.altText || app.name} width={100} height={220} fetchPriority={i === 0 ? "high" : "low"} style={{ height: 220, width: "auto", borderRadius: 10, flexShrink: 0, objectFit: "cover", border: "1px solid #f0f0f0" }} />
+              ))}
+            </div>
+          </div>
+        )}
+
+        {/* Other Related Apps — Screenshots ke NEECHE */}
+        {relatedApps.length > 0 && (
+          <div style={{ background: "#fff", borderRadius: 16, padding: 20, marginBottom: 16, boxShadow: "0 2px 12px rgba(0,0,0,0.08)" }}>
+            <h2 style={{ margin: "0 0 16px", fontSize: 16, fontWeight: 700 }}>Other Related Apps</h2>
+            <div style={{ display: "flex", flexDirection: "column", gap: 10 }}>
+              {relatedApps.map((ra) => (
+                <Link key={ra._id} href={"/" + ra.slug} style={{
+                  display: "flex", alignItems: "center", gap: 12,
+                  textDecoration: "none", color: "inherit",
+                  background: "#f9f9f9", borderRadius: 14, padding: "12px 14px",
+                  border: "1px solid #f0f0f0",
+                }}>
+                  <div style={{ width: 52, height: 52, borderRadius: 12, overflow: "hidden", flexShrink: 0, background: "#eee" }}>
+                    {ra.logoUrl
+                      ? <img src={ra.logoUrl + "?w=104&h=104&fit=crop&auto=format"} alt={ra.name} width={52} height={52} style={{ width: "100%", height: "100%", objectFit: "cover" }} />
+                      : <div style={{ width: "100%", height: "100%", display: "flex", alignItems: "center", justifyContent: "center", fontSize: 24 }}>🎮</div>
+                    }
+                  </div>
+                  <div style={{ flex: 1, minWidth: 0 }}>
+                    <div style={{ fontWeight: 700, fontSize: 14, color: "#1a1a1a", marginBottom: 3, whiteSpace: "nowrap", overflow: "hidden", textOverflow: "ellipsis" }}>{ra.name}</div>
+                    <div style={{ fontSize: 12, color: "#2e7d32", fontWeight: 600, marginBottom: 2 }}>Sign Up Bonus ₹{ra.bonus}</div>
+                    <div style={{ fontSize: 12, color: "#555" }}>Min. Withdraw ₹{ra.minWithdraw}/-</div>
+                  </div>
+                  <div style={{ background: "linear-gradient(135deg, #00632b, #007860)", color: "#fff", padding: "7px 12px", borderRadius: 10, fontSize: 12, fontWeight: 700, flexShrink: 0 }}>
+                    ⬇ Download
+                  </div>
+                </Link>
+              ))}
+            </div>
+          </div>
+        )}
+
+        {/* FAQ */}
+<div style={{ background: "#fff", borderRadius: 16, padding: 20, marginBottom: 16, boxShadow: "0 2px 12px rgba(0,0,0,0.08)" }}>
+  <h2 style={{ margin: "0 0 16px", fontSize: 16, fontWeight: 700 }}>Frequently Asked Questions</h2>
+
+  {[
+    { 
+      q: `What is ${app.name} APK?`, 
+      a: `${app.name} is a mobile gaming application where users can play different games for entertainment purposes.` 
+    },
+
+    { 
+      q: `How to download ${app.name} APK?`, 
+      a: `You can download the latest version of ${app.name} APK by clicking the download button available on our website.` 
+    },
+
+    { 
+      q: `Is ${app.name} safe to use?`, 
+      a: `${app.name} is a third-party app. Users should download it from trusted sources and use it at their own discretion.` 
+    },
+
+    { 
+      q: `Do I need to register?`, 
+      a: `Yes, you need to create an account to access all features of the ${app.name} app.` 
+    },
+
+    { 
+      q: `Are there any charges or payments?`, 
+      a: `Some features of ${app.name} may involve payments. Users should check all details inside the app before using any paid feature.` 
+    },
+
+    { 
+      q: `How to withdraw from ${app.name}?`, 
+      a: `Withdrawal options depend on the app. Please check the withdrawal section inside ${app.name} for complete details.` 
+    },
+
+    { 
+      q: `Does ${app.name} provide customer support?`, 
+      a: `Yes, most apps provide support through chat or email. You can find support options inside the app.` 
+    },
+
+    { 
+      q: `Do you own ${app.name}?`, 
+      a: `No, we do not own or operate ${app.name}. We only provide information and access links.` 
+    },
+  ].map((faq, i) => (
+    <div key={i} style={{ borderBottom: i < 7 ? "1px solid #f5f5f5" : "none", paddingBottom: 14, marginBottom: 14 }}>
+      <h3 style={{ margin: "0 0 6px", fontSize: 14, fontWeight: 700, color: "#1a1a1a" }}>{faq.q}</h3>
+      <p style={{ margin: 0, fontSize: 14, color: "#555", lineHeight: 1.6 }}>{faq.a}</p>
+    </div>
+  ))}
+</div>
+
+      </main>
+
+      <Footer />
+      <script type="application/ld+json" dangerouslySetInnerHTML={{ __html: JSON.stringify(structuredData) }} />
+    </div>
+  );
+}
