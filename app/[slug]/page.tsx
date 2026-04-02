@@ -1,7 +1,7 @@
 export async function generateStaticParams() {
   const query = encodeURIComponent(`*[_type == "app"]{ "slug": slug.current }`);
   const res = await fetch(
-    `https://eq6o0luu.api.sanity.io/v2021-10-21/data/query/production?query=${query}`
+    `https://r0d9oz57.api.sanity.io/v2021-10-21/data/query/production?query=${query}`
   );
   const data = await res.json();
   return data.result.map((app: { slug: string }) => ({ slug: app.slug }));
@@ -12,7 +12,7 @@ import Link from "next/link";
 import Header from "../Header";
 import Footer from "../Footer";
 
-const PROJECT_ID = "";
+const PROJECT_ID = "r0d9oz57";
 const DATASET = "production";
 
 interface Screenshot { imageUrl: string; altText: string; }
