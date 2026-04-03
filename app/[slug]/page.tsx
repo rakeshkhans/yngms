@@ -24,6 +24,7 @@ interface App {
   rating: number; reviewCount: number; perRefer?: number;
   developerName?: string; metaTitle?: string; metaDescription?: string;
   appInformation?: string; telegramLink?: string; screenshots: Screenshot[];
+  publishedAt?: string; updatedAt?: string;
 }
 
 interface RelatedApp {
@@ -39,6 +40,8 @@ async function getApp(slug: string): Promise<App | null> {
         bonus, minWithdraw, version, size, downloadLink,
         rating, reviewCount, perRefer, developerName,
         metaTitle, metaDescription, appInformation, telegramLink,
+        "publishedAt": _createdAt,
+        "updatedAt": _updatedAt,
         "logoUrl": logo.asset->url,
         "screenshots": screenshots[]{ "imageUrl": image.asset->url, altText }
       }`
@@ -71,13 +74,56 @@ async function getRelatedApps(currentSlug: string): Promise<RelatedApp[]> {
 
 export async function generateMetadata({ params }: { params: { slug: string } }): Promise<Metadata> {
   const app = await getApp(params.slug);
-  if (!app) return { title: "App Not Found – NovaGames" };
-  const title = app.metaTitle || `${app.name} APK Download – ₹${app.bonus} Bonus | NovaGames`;
-  const description = app.metaDescription || `Download ${app.name} APK and get ₹${app.bonus} sign-up bonus. Minimum withdrawal ₹${app.minWithdraw}.`;
+  if (!app) return { title: "App Not Found – AllYonoGamesh" };
+
+  const title = app.metaTitle || `${app.name} APK – Download & Claim ₹${app.bonus} Instant Bonus`;
+  const description = app.metaDescription || `${app.name} Official App – Download now and get ₹${app.bonus} welcome bonus. Play trending slots games, casino games, and enjoy secure payment options.`;
+  const canonicalUrl = `https://allyonogamesh.com/${params.slug}/`;
+  const imageUrl = app.logoUrl || "https://allyonogamesh.com/allyonogamesh-logo.png";
+
   return {
-    title, description,
-    openGraph: { title, description, images: app.logoUrl ? [app.logoUrl] : [], type: "website" },
-    twitter: { card: "summary_large_image", title, description, images: app.logoUrl ? [app.logoUrl] : [] },
+    title,
+    description,
+    robots: {
+      index: true,
+      follow: true,
+      googleBot: {
+        index: true,
+        follow: true,
+        "max-snippet": -1,
+        "max-video-preview": -1,
+        "max-image-preview": "large",
+      },
+    },
+    alternates: {
+      canonical: canonicalUrl,
+    },
+    openGraph: {
+      title,
+      description,
+      url: canonicalUrl,
+      siteName: "AllYonoGamesh",
+      locale: "en_US",
+      type: "article",
+      publishedTime: app.publishedAt,
+      modifiedTime: app.updatedAt,
+      images: [
+        {
+          url: imageUrl,
+          secureUrl: imageUrl,
+          width: 320,
+          height: 320,
+          alt: `${app.name} APK`,
+          type: "image/jpeg",
+        },
+      ],
+    },
+    twitter: {
+      card: "summary_large_image",
+      title,
+      description,
+      images: [imageUrl],
+    },
   };
 }
 
