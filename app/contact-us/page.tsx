@@ -34,7 +34,7 @@ export default function ContactUs() {
 
           {[
             { icon: "📧", label: "Email", value: "support@AllYonoGamesh.Com", href: "mailto:support@AllYonoGamesh.com" },
-            { icon: "✈️", label: "Telegram", value: "@AllYonoGamesh", href: "https://t.me/AllYonoGamesh" },
+            { icon: "✈️", label: "Telegram", value: "@AllYonoGameshCom", href: "https://t.me/allyonogameshcom" },
           ].map((item) => (
             <a
               key={item.label}
